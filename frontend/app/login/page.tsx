@@ -32,7 +32,7 @@ export default function LoginPage() {
     setMessage(null);
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/auth/login", {
+      const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: loginEmail, password: loginPassword }),
@@ -62,7 +62,7 @@ export default function LoginPage() {
     setMessage(null);
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/auth/request-otp", {
+      const res = await fetch("/api/auth/request-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: signupName, email: signupEmail }),
@@ -89,7 +89,7 @@ export default function LoginPage() {
     setMessage(null);
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/auth/verify-otp", {
+      const res = await fetch("/api/auth/verify-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: signupEmail, otp: otp }),
@@ -121,7 +121,7 @@ export default function LoginPage() {
     setMessage(null);
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/auth/signup", {
+      const res = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: signupName, email: signupEmail, password: signupPassword }),
