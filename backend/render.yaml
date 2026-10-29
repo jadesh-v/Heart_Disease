@@ -13,3 +13,5 @@ services:
         sync: false
       - key: FLUXBASE_API_KEY
         sync: false
+      - key: USE_LOCAL_DB
+        value: "false"

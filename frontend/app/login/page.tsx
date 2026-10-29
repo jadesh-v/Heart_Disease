@@ -3,6 +3,30 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 
+type ApiResponse = {
+  detail?: string;
+  message?: string;
+  token?: string;
+  user?: { name: string };
+};
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Request failed";
+}
+
+async function readApiResponse(res: Response): Promise<ApiResponse> {
+  const contentType = res.headers.get("content-type") || "";
+  if (!contentType.includes("application/json")) {
+    throw new Error(`Request failed with status ${res.status}`);
+  }
+
+  const data = await res.json();
+  if (!data || typeof data !== "object") {
+    throw new Error(`Request failed with status ${res.status}`);
+  }
+  return data;
+}
+
 export default function LoginPage() {
   const router = useRouter();
   
@@ -37,7 +61,7 @@ export default function LoginPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: loginEmail, password: loginPassword }),
       });
-      const data = await res.json();
+      const data = await readApiResponse(res);
       
       if (!res.ok) {
         throw new Error(data.detail || "Login failed");
@@ -48,8 +72,8 @@ export default function LoginPage() {
       localStorage.setItem("user_name", data.user.name);
       
       router.push("/predict");
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -67,16 +91,16 @@ export default function LoginPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: signupName, email: signupEmail }),
       });
-      const data = await res.json();
+      const data = await readApiResponse(res);
       
       if (!res.ok) {
         throw new Error(data.detail || "Failed to request OTP");
       }
 
-      setMessage(data.message);
+      setMessage(data.message || "OTP sent successfully.");
       setSignupStep(2);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -94,7 +118,7 @@ export default function LoginPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: signupEmail, otp: otp }),
       });
-      const data = await res.json();
+      const data = await readApiResponse(res);
       
       if (!res.ok) {
         throw new Error(data.detail || "Failed to verify OTP");
@@ -102,8 +126,8 @@ export default function LoginPage() {
 
       setMessage(data.message);
       setSignupStep(3);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -126,7 +150,7 @@ export default function LoginPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: signupName, email: signupEmail, password: signupPassword }),
       });
-      const data = await res.json();
+      const data = await readApiResponse(res);
       
       if (!res.ok) {
         throw new Error(data.detail || "Signup failed");
@@ -140,8 +164,8 @@ export default function LoginPage() {
       setOtp("");
       setSignupPassword("");
       setConfirmPassword("");
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -153,7 +177,7 @@ export default function LoginPage() {
         
         {/* TABS */}
         <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
-          <button 
+          <button suppressHydrationWarning
             onClick={() => { setTab("login"); setError(null); setMessage(null); }}
             style={{ 
               flex: 1, padding: "10px", borderRadius: 8, fontWeight: 600,
@@ -162,7 +186,7 @@ export default function LoginPage() {
             }}>
             Log In
           </button>
-          <button 
+          <button suppressHydrationWarning
             onClick={() => { setTab("signup"); setError(null); setMessage(null); }}
             style={{ 
               flex: 1, padding: "10px", borderRadius: 8, fontWeight: 600,
@@ -190,7 +214,7 @@ export default function LoginPage() {
           <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div>
               <label style={{ display: "block", marginBottom: 6, fontSize: 13, color: "var(--text-300)" }}>Email Address</label>
-              <input 
+              <input suppressHydrationWarning
                 type="email" required
                 value={loginEmail} onChange={e => setLoginEmail(e.target.value)}
                 style={{ width: "100%", padding: "12px", borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "white" }}
@@ -198,13 +222,13 @@ export default function LoginPage() {
             </div>
             <div>
               <label style={{ display: "block", marginBottom: 6, fontSize: 13, color: "var(--text-300)" }}>Password</label>
-              <input 
+              <input suppressHydrationWarning
                 type="password" required
                 value={loginPassword} onChange={e => setLoginPassword(e.target.value)}
                 style={{ width: "100%", padding: "12px", borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "white" }}
               />
             </div>
-            <button type="submit" disabled={loading} className="btn btn-primary" style={{ width: "100%", padding: "14px", marginTop: 8 }}>
+            <button suppressHydrationWarning type="submit" disabled={loading} className="btn btn-primary" style={{ width: "100%", padding: "14px", marginTop: 8 }}>
               {loading ? "Logging in..." : "Log In"}
             </button>
           </form>
@@ -217,7 +241,7 @@ export default function LoginPage() {
               <form onSubmit={handleRequestOtp} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 <div>
                   <label style={{ display: "block", marginBottom: 6, fontSize: 13, color: "var(--text-300)" }}>Full Name</label>
-                  <input 
+                  <input suppressHydrationWarning
                     type="text" required
                     value={signupName} onChange={e => setSignupName(e.target.value)}
                     style={{ width: "100%", padding: "12px", borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "white" }}
@@ -225,13 +249,13 @@ export default function LoginPage() {
                 </div>
                 <div>
                   <label style={{ display: "block", marginBottom: 6, fontSize: 13, color: "var(--text-300)" }}>Email Address</label>
-                  <input 
+                  <input suppressHydrationWarning
                     type="email" required
                     value={signupEmail} onChange={e => setSignupEmail(e.target.value)}
                     style={{ width: "100%", padding: "12px", borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "white" }}
                   />
                 </div>
-                <button type="submit" disabled={loading} className="btn btn-primary" style={{ width: "100%", padding: "14px", marginTop: 8 }}>
+                <button suppressHydrationWarning type="submit" disabled={loading} className="btn btn-primary" style={{ width: "100%", padding: "14px", marginTop: 8 }}>
                   {loading ? "Sending OTP..." : "Continue"}
                 </button>
               </form>
@@ -241,7 +265,7 @@ export default function LoginPage() {
               <form onSubmit={handleVerifyOtp} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 <div>
                   <label style={{ display: "block", marginBottom: 6, fontSize: 13, color: "var(--text-300)" }}>Enter OTP sent to {signupEmail}</label>
-                  <input 
+                  <input suppressHydrationWarning
                     type="text" required
                     value={otp} onChange={e => setOtp(e.target.value)}
                     placeholder="123456"
@@ -249,10 +273,10 @@ export default function LoginPage() {
                   />
                 </div>
                 <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                  <button type="button" onClick={() => setSignupStep(1)} style={{ flex: 1, padding: "14px", borderRadius: 8, background: "rgba(255,255,255,0.1)", color: "white" }}>
+                  <button suppressHydrationWarning type="button" onClick={() => setSignupStep(1)} style={{ flex: 1, padding: "14px", borderRadius: 8, background: "rgba(255,255,255,0.1)", color: "white" }}>
                     Back
                   </button>
-                  <button type="submit" disabled={loading} className="btn btn-primary" style={{ flex: 2, padding: "14px" }}>
+                  <button suppressHydrationWarning type="submit" disabled={loading} className="btn btn-primary" style={{ flex: 2, padding: "14px" }}>
                     {loading ? "Verifying..." : "Verify OTP"}
                   </button>
                 </div>
@@ -263,7 +287,7 @@ export default function LoginPage() {
               <form onSubmit={handleSignup} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 <div>
                   <label style={{ display: "block", marginBottom: 6, fontSize: 13, color: "var(--text-300)" }}>Create Password</label>
-                  <input 
+                  <input suppressHydrationWarning
                     type="password" required minLength={6}
                     value={signupPassword} onChange={e => setSignupPassword(e.target.value)}
                     style={{ width: "100%", padding: "12px", borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "white" }}
@@ -271,13 +295,13 @@ export default function LoginPage() {
                 </div>
                 <div>
                   <label style={{ display: "block", marginBottom: 6, fontSize: 13, color: "var(--text-300)" }}>Confirm Password</label>
-                  <input 
+                  <input suppressHydrationWarning
                     type="password" required minLength={6}
                     value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)}
                     style={{ width: "100%", padding: "12px", borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "white" }}
                   />
                 </div>
-                <button type="submit" disabled={loading} className="btn btn-primary" style={{ width: "100%", padding: "14px", marginTop: 8 }}>
+                <button suppressHydrationWarning type="submit" disabled={loading} className="btn btn-primary" style={{ width: "100%", padding: "14px", marginTop: 8 }}>
                   {loading ? "Creating Account..." : "Create Account"}
                 </button>
               </form>

@@ -1,19 +1,21 @@
 import os
 import random
 import smtplib
+import logging
 from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.utils import formataddr
-from typing import Dict, Optional
+from typing import Dict
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, EmailStr
 import bcrypt
 
 from database import get_user_by_email, create_user
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+logger = logging.getLogger(__name__)
 
 # Password hashing setup
 # Using bcrypt directly since passlib has known issues with bcrypt >= 4.0.0
@@ -51,8 +53,7 @@ APP_NAME = "Heart Disease Predictor"
 
 def send_otp_email(to_email: str, name: str, otp: str):
     if not EMAIL_USER or not EMAIL_PASS:
-        print(f"Warning: Email credentials not configured. OTP for {to_email} is {otp}")
-        return
+        raise RuntimeError("Gmail credentials are not configured.")
 
     subject = f"Your {APP_NAME} OTP Code"
 
@@ -89,19 +90,22 @@ def send_otp_email(to_email: str, name: str, otp: str):
     msg.attach(MIMEText(plain_body, "plain"))
     msg.attach(MIMEText(html_body, "html"))
 
+    password = "".join(EMAIL_PASS.split())
     try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login(EMAIL_USER, EMAIL_PASS)
-            server.sendmail(EMAIL_USER, to_email, msg.as_string())
-            print(f"OTP email sent successfully to {to_email}")
-    except Exception as e:
-        print(f"Failed to send email to {to_email}: {e}")
-        # Not raising so dev can proceed without email; in prod monitor this log.
+        with smtplib.SMTP("smtp.gmail.com", 587, timeout=20) as server:
+            server.ehlo()
+            server.starttls()
+            server.ehlo()
+            server.login(EMAIL_USER, password)
+            server.send_message(msg)
+    except (OSError, smtplib.SMTPException) as exc:
+        logger.exception("Failed to send OTP email to %s", to_email)
+        raise RuntimeError("Gmail could not send the OTP email.") from exc
 
 # --- Endpoints ---
 
 @router.post("/request-otp")
-def request_otp(req: RequestOTPRequest, background_tasks: BackgroundTasks):
+def request_otp(req: RequestOTPRequest):
     # Check if user already exists
     existing_user = get_user_by_email(req.email)
     if existing_user:
@@ -110,14 +114,14 @@ def request_otp(req: RequestOTPRequest, background_tasks: BackgroundTasks):
     # Generate 6-digit OTP
     otp = f"{random.randint(100000, 999999)}"
     
-    # Store OTP with 10 minute expiry
+    try:
+        send_otp_email(req.email, req.name, otp)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
     expires_at = datetime.now() + timedelta(minutes=10)
     otp_store[req.email] = {"otp": otp, "expires_at": expires_at}
-
-    # Send email in background
-    background_tasks.add_task(send_otp_email, req.email, req.name, otp)
-
-    return {"message": "OTP sent successfully. Please check your email."}
+    return {"message": "OTP sent to your Gmail address. Please check your inbox."}
 
 @router.post("/verify-otp")
 def verify_otp(req: VerifyOTPRequest):
