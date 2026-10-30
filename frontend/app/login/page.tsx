@@ -67,7 +67,10 @@ export default function LoginPage() {
         throw new Error(data.detail || "Login failed");
       }
 
-      // Save fake token
+      if (!data.token || !data.user) {
+        throw new Error("Login response was incomplete");
+      }
+
       localStorage.setItem("auth_token", data.token);
       localStorage.setItem("user_name", data.user.name);
       
@@ -124,7 +127,7 @@ export default function LoginPage() {
         throw new Error(data.detail || "Failed to verify OTP");
       }
 
-      setMessage(data.message);
+      setMessage(data.message || "OTP verified successfully.");
       setSignupStep(3);
     } catch (err: unknown) {
       setError(getErrorMessage(err));

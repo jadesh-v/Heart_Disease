@@ -22,16 +22,37 @@ logger = logging.getLogger(__name__)
 
 # ── Load model artefacts ──────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DL_MODEL_PATH = os.path.join(BASE_DIR, "heart_dl_model.keras")
+DL_PREPROCESSING_PATH = os.path.join(BASE_DIR, "dl_preprocessing.pkl")
 MODEL_PATH = os.path.join(BASE_DIR, "heart_model.pkl")
+MODEL_KIND = "random_forest"
 
 try:
-    with open(MODEL_PATH, "rb") as f:
-        artefacts = pickle.load(f)
-    model = artefacts["model"]
-    scaler = artefacts["scaler"]
-    FEATURE_NAMES: List[str] = artefacts["feature_names"]
-    THRESHOLD: float = artefacts.get("threshold", 0.5)  # disease decision threshold
-    logger.info("Model loaded. Features: %s | Threshold: %.2f", FEATURE_NAMES, THRESHOLD)
+    if os.path.exists(DL_MODEL_PATH) and os.path.exists(DL_PREPROCESSING_PATH):
+        import tensorflow as tf
+
+        model = tf.keras.models.load_model(DL_MODEL_PATH)
+        with open(DL_PREPROCESSING_PATH, "rb") as f:
+            artefacts = pickle.load(f)
+        scaler = artefacts["scaler"]
+        FEATURE_NAMES = artefacts["feature_names"]
+        THRESHOLD = artefacts.get("threshold", 0.5)
+        SHAP_BACKGROUND = np.asarray(artefacts.get("background", []), dtype=float)
+        MODEL_KIND = "deep_learning"
+    else:
+        with open(MODEL_PATH, "rb") as f:
+            artefacts = pickle.load(f)
+        model = artefacts["model"]
+        scaler = artefacts["scaler"]
+        FEATURE_NAMES = artefacts["feature_names"]
+        THRESHOLD = artefacts.get("threshold", 0.5)
+        SHAP_BACKGROUND = np.empty((0, len(FEATURE_NAMES)))
+    logger.info(
+        "%s model loaded. Features: %s | Threshold: %.2f",
+        MODEL_KIND,
+        FEATURE_NAMES,
+        THRESHOLD,
+    )
 except FileNotFoundError:
     logger.error(
         "heart_model.pkl not found. Run `python train_model.py` first."
@@ -44,7 +65,7 @@ except Exception as exc:
 # ── FastAPI app ───────────────────────────────────────────────────────────────
 app = FastAPI(
     title="Heart Disease XAI API",
-    description="Predicts heart disease using Random Forest + SHAP explanations",
+    description="Predicts heart disease using Deep Learning or Random Forest + SHAP explanations",
     version="1.0.0",
 )
 
@@ -118,6 +139,24 @@ def compute_shap(input_scaled: np.ndarray) -> np.ndarray:
     Averages SHAP values across the calibration folds.
     Falls back to KernelExplainer if tree-based approach fails.
     """
+    if MODEL_KIND == "deep_learning":
+        background = SHAP_BACKGROUND
+        if background.size == 0:
+            background = input_scaled
+
+        def predict_probability(values: np.ndarray) -> np.ndarray:
+            return model.predict(values, verbose=0).ravel()
+
+        try:
+            explainer = shap.Explainer(predict_probability, background)
+            explanation = explainer(input_scaled)
+            return np.asarray(explanation.values[0], dtype=float)
+        except Exception:
+            logger.warning("Neural-network SHAP explainer failed; using KernelExplainer")
+            explainer = shap.KernelExplainer(predict_probability, background[:10])
+            values = explainer.shap_values(input_scaled, nsamples=200)
+            return np.asarray(values[0] if np.asarray(values).ndim > 1 else values, dtype=float)
+
     from sklearn.calibration import CalibratedClassifierCV as CCCV
 
     try:
@@ -183,7 +222,10 @@ def predict(req: PredictRequest):
         X_scaled = scaler.transform(X_raw)
 
         # 3. Predict probability and apply calibrated threshold
-        proba = float(model.predict_proba(X_scaled)[0][1])  # P(disease)
+        if MODEL_KIND == "deep_learning":
+            proba = float(model.predict(X_scaled, verbose=0).ravel()[0])
+        else:
+            proba = float(model.predict_proba(X_scaled)[0][1])
         prediction = int(proba >= THRESHOLD)
         prob_pct = round(proba * 100, 2)
 

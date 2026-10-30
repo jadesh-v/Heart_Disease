@@ -6,12 +6,12 @@
 
 ## 📋 Project Description
 
-This system applies **Explainable AI (XAI)** to cardiovascular risk assessment. A **Random Forest Classifier** trained on the UCI Heart Disease dataset makes predictions, while **SHAP** reveals _why_ the model made each decision — showing which clinical features drove the risk score up or down.
+This system applies **Deep Learning** and **Explainable AI (XAI)** to cardiovascular risk assessment. A TensorFlow/Keras multilayer perceptron (MLP) makes predictions, while **SHAP** reveals which clinical features drove the model output up or down. The original Random Forest remains available as a reproducible baseline for comparison.
 
 The platform features:
 - A modern **Next.js + React** medical dashboard UI
 - A **FastAPI** REST backend with proper error handling
-- **SHAP TreeExplainer** for post-hoc, feature-level explanations
+- **SHAP** post-hoc, feature-level explanations
 - Animated probability ring, SHAP bar charts, and top-5 feature highlights
 
 ---
@@ -20,12 +20,13 @@ The platform features:
 
 | Layer | Technology |
 |---|---|
-| Frontend | Next.js 15, React 19, TypeScript, Vanilla CSS |
+| Frontend | Next.js 16, React 19, TypeScript, Vanilla CSS |
 | Backend | FastAPI, Uvicorn, Python 3.10+ |
-| ML Model | Random Forest Classifier (scikit-learn) |
+| ML Model | TensorFlow/Keras MLP neural network |
+| Baseline | Random Forest Classifier (scikit-learn) |
 | Explainability | SHAP (TreeExplainer) |
 | Preprocessing | StandardScaler |
-| Dataset | `heart.csv` (1,025 rows, 13 features) |
+| Dataset | `heart.csv` (1,025 source rows; 302 deduplicated training rows, 13 features) |
 
 ---
 
@@ -36,9 +37,13 @@ Heart-Disease-XAI/
 │
 ├── backend/
 │   ├── main.py              ← FastAPI server with /predict endpoint
-│   ├── train_model.py       ← Model training + preprocessing script
+│   ├── train_model.py       ← Random Forest baseline training script
+│   ├── train_dl_model.py    ← Neural network training + comparison script
 │   ├── heart.csv            ← Dataset
-│   ├── heart_model.pkl      ← Saved model + scaler (generated)
+│   ├── heart_model.pkl      ← Saved Random Forest baseline
+│   ├── heart_dl_model.keras ← Saved neural network (generated)
+│   ├── dl_preprocessing.pkl ← Scaler, features, threshold and SHAP background
+│   ├── model_metrics.json   ← Held-out comparison metrics (generated)
 │   └── requirements.txt     ← Python dependencies
 │
 ├── frontend/
@@ -50,7 +55,7 @@ Heart-Disease-XAI/
 │   │   ├── types.ts         ← TypeScript interfaces
 │   │   ├── PredictionForm.tsx ← 13-field clinical input form
 │   │   └── ResultPanel.tsx  ← Results, SHAP table, probability ring
-│   ├── next.config.js       ← Next.js configuration
+│   ├── next.config.ts       ← Next.js configuration
 │   └── package.json         ← Node dependencies
 │
 ├── .gitignore
@@ -97,8 +102,11 @@ cd Heart-Disease-XAI/backend
 # Install dependencies
 pip install -r requirements.txt
 
-# Train the model (generates heart_model.pkl)
+# Train the Random Forest baseline (generates heart_model.pkl)
 python train_model.py
+
+# Train the neural network and compare it with the baseline
+python train_dl_model.py
 
 # Start the FastAPI server
 uvicorn main:app --host 127.0.0.1 --port 8000 --reload
@@ -184,8 +192,8 @@ Frontend will be available at: **http://localhost:3000**
 **SHAP (SHapley Additive exPlanations)** is a game-theory-based method for explaining machine learning predictions.
 
 **In this project:**
-1. After the Random Forest makes a prediction, `shap.TreeExplainer` is initialized with the trained model.
-2. For the given patient's scaled feature vector, SHAP computes a **contribution value** for each of the 13 features.
+1. After the neural network makes a prediction, SHAP evaluates the model against a saved training background.
+2. For the given patient's scaled feature vector, SHAP computes a **model-output contribution** for each of the 13 features.
 3. **Positive SHAP values** → the feature *increased* the probability of heart disease.
 4. **Negative SHAP values** → the feature *decreased* the probability of heart disease.
 5. The magnitude of each value shows how strongly it influenced the outcome.
@@ -197,11 +205,28 @@ Frontend will be available at: **http://localhost:3000**
 
 ## 🔧 Technical Notes
 
-- Dataset: UCI Heart Disease dataset (Cleveland, adapted)
-- Model: `RandomForestClassifier` with 200 estimators, max_depth=10
-- Preprocessing: `StandardScaler` applied before training and inference
-- SHAP: `TreeExplainer` used for exact, efficient explanations on tree-based models
+- Dataset: UCI Heart Disease dataset (Cleveland, adapted); duplicate rows are removed before splitting
+- Model: TensorFlow/Keras MLP with 64, 32 and 16 ReLU neurons, dropout and sigmoid output
+- Baseline: `RandomForestClassifier` retained for comparison
+- Preprocessing: `StandardScaler` is fitted on training data only and saved with the model
+- Evaluation: validation data selects the decision threshold; the held-out test set remains untouched until final evaluation
+- SHAP: model-agnostic `shap.Explainer` for the neural network, with a KernelExplainer fallback
 - Feature order is strictly maintained between training and inference to prevent mismatch errors
+
+### Generated evaluation
+
+The current reproducible run is recorded in `backend/model_metrics.json`:
+
+| Model | Accuracy | Precision | Recall | F1 | ROC-AUC |
+|---|---:|---:|---:|---:|---:|
+| Neural network | 0.819672 | 0.774194 | 0.857143 | 0.813559 | 0.903680 |
+| Random Forest baseline | 0.754098 | 0.666667 | 0.928571 | 0.776119 | 0.886364 |
+
+These are dataset-specific results, not a clinical validation claim. The training script recomputes them whenever the model is retrained.
+
+### Authentication limitations
+
+Registration uses a ten-minute in-memory OTP store and login returns a frontend token placeholder. SQLite is supported locally and Fluxbase can be selected for deployment, but the current authentication flow is not production-grade session security. A production deployment should use a persistent OTP store, rate limiting, secure cookies or signed tokens, and secret-management controls.
 
 ---
 

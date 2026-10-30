@@ -5,8 +5,8 @@ import Navbar from "@/components/Navbar";
 export const metadata: Metadata = {
   title: "CardioXAI — Explainable AI Heart Disease Prediction",
   description:
-    "AI-powered cardiovascular risk assessment using Random Forest + SHAP explainability. Predict heart disease risk from 13 clinical parameters with full transparency.",
-  keywords: ["heart disease prediction", "explainable AI", "SHAP", "random forest", "cardiovascular risk", "XAI", "medical AI"],
+    "AI-powered cardiovascular risk assessment using deep learning and SHAP explainability. Predict heart disease risk from 13 clinical parameters with full transparency.",
+  keywords: ["heart disease prediction", "explainable AI", "SHAP", "deep learning", "cardiovascular risk", "XAI", "medical AI"],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

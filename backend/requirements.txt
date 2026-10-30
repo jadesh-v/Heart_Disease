@@ -11,3 +11,5 @@ passlib
 bcrypt
 pydantic[email]
 python-dotenv
+tensorflow==2.18.0
+matplotlib==3.10.6
